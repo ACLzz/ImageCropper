@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/ACLzz/ImageCropper/src/broker"
 	"github.com/ACLzz/ImageCropper/src/config"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -27,6 +28,25 @@ func UploadImage(c *gin.Context) {
 	if err := c.SaveUploadedFile(file, filepath); err != nil {
 		return
 	}
+
+	go func() {
+		ch, cls := broker.GetChannel()
+		defer cls()
+
+		f, err := file.Open()
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		defer f.Close()
+		image := broker.ConvertFileToMessage(fn, f)
+		if image == nil {
+			return
+		}
+
+		// publish image to queue
+		err = ch.Publish("", broker.CropperQueueName, false, false, *image)
+	}()
 
 	c.String(http.StatusOK, fmt.Sprintf("'%s' uploaded!", file.Filename))
 }

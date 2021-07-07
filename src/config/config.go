@@ -11,6 +11,7 @@ type Config struct {
 	ExtraFolder		string
 	Host			string
 	Port			int
+	BrokerUrl		string
 }
 
 func getFolder(path string) string {
@@ -24,4 +25,5 @@ var ConfigObj = Config{
 	ExtraFolder:		getFolder("extra/"),
 	Host:				"localhost",
 	Port:				8888,
+	BrokerUrl:			"amqp://guest:guest@localhost:5672",
 }

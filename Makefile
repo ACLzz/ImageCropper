@@ -7,3 +7,5 @@ build:
 move_config:
 	mkdir -p $(CONFIG_FOLDER)
 	cp -rf extra/* $(CONFIG_FOLDER)
+
+setup: move_config build
