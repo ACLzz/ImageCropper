@@ -24,9 +24,14 @@ type AddImage struct {
 	Image		string
 }
 
-var cropperSizes = [3]int{64, 128, 256}
+func StartCropService() {
+	go func() {
+		logrus.Info("starting cropper service")
+		cropService()
+	}()
+}
 
-func cropImages() {
+func cropService() {
 	ch, cls := GetChannel()
 	defer cls()
 	qCh, err := ch.Consume(CropperQueueName, "",
@@ -44,63 +49,16 @@ func cropImages() {
 			continue
 		}
 		logrus.Infof("recived file with name %s", imageMsg.Filename)
-		_imageExtension := strings.Split(imageMsg.Filename, ".")
-		imageExtension := strings.ToLower(_imageExtension[len(_imageExtension)-1])
 
-		for _, res := range cropperSizes {
-			filepath := fmt.Sprintf("%s%dx%d/%s", config.ConfigObj.CroppedPicsDest, res, res, imageMsg.Filename)
+		for _, res := range config.ConfigObj.CropperSizes {
+			// get image from string
+			src := decodeImage(imageMsg.Image)
+			if src == nil { continue }
 
-			data, err := base64.StdEncoding.DecodeString(imageMsg.Image)
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-
-			reader := bytes.NewReader(data)
-			_, err = reader.Seek(0, 0)
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-
-			src, _, err := image.Decode(reader)
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-
-			dst := image.NewRGBA(image.Rect(0, 0, res, res))
-			draw.CatmullRom.Scale(dst, dst.Bounds(),
-				src, src.Bounds(),
-				draw.Over, nil)
-
-			file, err := os.Create(filepath)
-			if err != nil {
-				logrus.Error(err)
-				continue
-			}
-
-			switch imageExtension {
-			case "png":
-				if err := png.Encode(file, dst); err != nil {
-					logrus.Error(err)
-				}
-			case "jpg":
-				if err := jpeg.Encode(file, dst, nil); err != nil {
-					logrus.Error(err)
-				}
-			}
-
-			file.Close()
+			// crop and save it
+			cropImage(res, res, imageMsg.Filename, *src)
 		}
 	}
-}
-
-func StartCropService() {
-	go func() {
-		logrus.Info("starting cropper service")
-		cropImages()
-	}()
 }
 
 func ConvertFileToMessage(filename string, file io.Reader) *amqp.Publishing {
@@ -127,4 +85,66 @@ func ConvertFileToMessage(filename string, file io.Reader) *amqp.Publishing {
 		DeliveryMode: amqp.Persistent,
 	}
 	return &message
+}
+
+func decodeImage(imgStr string) *image.Image {
+	data, err := base64.StdEncoding.DecodeString(imgStr)
+	if err != nil {
+		logrus.Error(err)
+		return nil
+	}
+
+	reader := bytes.NewReader(data)
+	_, err = reader.Seek(0, 0)
+	if err != nil {
+		logrus.Error(err)
+		return nil
+	}
+
+	src, _, err := image.Decode(reader)
+	if err != nil {
+		logrus.Error(err)
+		return nil
+	}
+
+	return &src
+}
+
+func cropImage(x, y int, filename string, src  image.Image) {
+	// crop image
+	dst := image.NewRGBA(image.Rect(0, 0, x, y))
+	draw.CatmullRom.Scale(dst, dst.Bounds(),
+		src, src.Bounds(),
+		draw.Over, nil)
+
+	// create directory for that resolution
+	resolutionPath := fmt.Sprintf("%s%dx%d/", config.ConfigObj.CroppedPicsDest, x, y)
+	if err := os.Mkdir(resolutionPath, 0755); err != nil {
+		logrus.Error(err)
+	}
+
+	// write image to file
+	filepath := resolutionPath + filename
+	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	_imageExtension := strings.Split(filename, ".")
+	imageExtension := strings.ToLower(_imageExtension[len(_imageExtension)-1])
+
+	switch imageExtension {
+	case "png":
+		if err := png.Encode(file, dst); err != nil {
+			logrus.Error(err)
+		}
+	case "jpg":
+		if err := jpeg.Encode(file, dst, nil); err != nil {
+			logrus.Error(err)
+		}
+	default:
+		logrus.Errorf("format '%s' is unsupported", imageExtension)
+	}
+	file.Close()
 }

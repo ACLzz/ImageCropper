@@ -9,6 +9,7 @@ import (
 const CropperQueueName = "cropper"
 
 func StartServices()  {
+	// prepares queues for services and starts them
 	ch, cls := GetChannel()
 	defer cls()
 	if _, err := ch.
@@ -24,6 +25,7 @@ func StartServices()  {
 }
 
 func GetChannel() (*amqp.Channel, func()) {
+	// returns channel interface and close function
 	conn, err := amqp.Dial(config.ConfigObj.BrokerUrl)
 	if err != nil {
 		logrus.Fatal("rabbitMQ not available:", err)
@@ -39,8 +41,4 @@ func GetChannel() (*amqp.Channel, func()) {
 		conn.Close()
 	}
 	return ch, cls
-}
-
-func GetQueue() {
-
 }

@@ -7,8 +7,10 @@ import (
 	img "image"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestCropper(t *testing.T) {
@@ -18,7 +20,7 @@ func TestCropper(t *testing.T) {
 
 	fn := "test.png"
 	filepath := config.ConfigObj.ExtraFolder + fn
-	file, err := os.OpenFile(filepath, os.O_RDONLY, 0644)
+	file, err := os.OpenFile(filepath, os.O_RDONLY, 0755)
 	if err != nil {
 		t.Error(err)
 		return
@@ -27,12 +29,20 @@ func TestCropper(t *testing.T) {
 
 	image := ConvertFileToMessage(fn, file)
 	err = ch.Publish("", CropperQueueName, false, false, *image)
+	<-time.After(2 * time.Second)	// wait for crop
 
-	for _, res := range cropperSizes {
+	for _, res := range config.ConfigObj.CropperSizes {
 		croppedFP := fmt.Sprint(config.ConfigObj.CroppedPicsDest, res,"x", res, "/", fn) // ~/.imrc/cropped/16x16/filename.ext
-		data, err := os.ReadFile(croppedFP)
+		file, err := os.OpenFile(croppedFP, os.O_RDONLY, 0755)
 		if err != nil {
 			t.Error(err)
+			continue
+		}
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			t.Error(err)
+			continue
 		} else {
 			if err := os.Remove(croppedFP); err != nil {
 				t.Error("cannot delete ", croppedFP)

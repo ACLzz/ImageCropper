@@ -12,6 +12,7 @@ type Config struct {
 	Host			string
 	Port			int
 	BrokerUrl		string
+	CropperSizes	[]int
 }
 
 func getFolder(path string) string {
@@ -26,4 +27,5 @@ var ConfigObj = Config{
 	Host:				"localhost",
 	Port:				8888,
 	BrokerUrl:			"amqp://guest:guest@localhost:5672",
-}
+	CropperSizes:		[]int{64, 128, 256},
+}			// TODO read config from file

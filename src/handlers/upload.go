@@ -12,6 +12,7 @@ import (
 )
 
 func UploadImage(c *gin.Context) {
+	// get file from request
 	fileField := "file"
 	file, err := c.FormFile(fileField)
 	if err != nil {
@@ -20,6 +21,7 @@ func UploadImage(c *gin.Context) {
 		return
 	}
 
+	// build path to save original
 	_fileExtension := strings.Split(file.Filename, ".")
 	fileExtension := _fileExtension[len(_fileExtension)-1]
 	fn := fmt.Sprint(randstr.Hex(16), ".", fileExtension)
@@ -30,6 +32,7 @@ func UploadImage(c *gin.Context) {
 	}
 
 	go func() {
+		// build message for broker
 		ch, cls := broker.GetChannel()
 		defer cls()
 
